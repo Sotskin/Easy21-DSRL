@@ -1,4 +1,3 @@
-import numpy as np
 import random
 
 N0 = 100
@@ -89,6 +88,11 @@ def update_Q(sa, G):
         Q[sa] = 0
     Q[sa] = Q[sa] + (G - Q[sa])/N[sa]
 
+winper = []
+lossper = []
+drawper = []
+epinum = []
+
 def train(episode = 10000):
     global episode_over
     print("Start training")
@@ -106,7 +110,7 @@ def train(episode = 10000):
         for j in range(len(steps)):
             update_Q(steps[j], G)
         if( ( (i<10000) and ((i % 100)== 0)) or (i % 10000 == 0)):
-            print("Episode ", i, " test:", end = '')
+            epinum.append(i)
             test()
     print("Training is over")
 
@@ -127,7 +131,18 @@ def test(t_episodes=10000):
         else:
             loss += 1
     total = t_episodes
-    print(" win: ",win/total, " draw: ", draw/total," loss: ",loss/total)
+    winper.append(win/total)
+    drawper.append(draw/total)
+    lossper.append(loss/total)
     
 train(3000000)
-test(10000000)
+import pickle
+with open('outfile', 'wb') as f:
+    pickle.dump([epinum, lossper, drawper, winper], f)
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+plt.plot(epinum,winper, "bo-", epinum, lossper, "ro-")
+plt.grid(True, linestyle = "--")
+plt.show()
