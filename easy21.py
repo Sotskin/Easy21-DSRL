@@ -1,10 +1,17 @@
 import random
+import numpy as np
+import matplotlib.pyplot as plt
+import pickle
+from mpl_toolkits.mplot3d import Axes3D
 
 N0 = 100
+gamma = 1 # No discounting
 episode_over = False
+result_testing = True
 Q = {}
 N = {}
 V = []
+E = {}
 
 def initial_state():
     return (random.randint(1,10), random.randint(1,10))
@@ -73,17 +80,13 @@ def egreedy(s):
 def greedy(s):
     s0 = (s,0)
     s1 = (s,1)
-    Q0 = Q[s0] if (s0 in Q) else 0
-    Q1 = Q[s1] if (s1 in Q) else 0
+    Q0 = Q.get(s0, 0)
+    Q1 = Q.get(s1, 0)
     if(Q0 > Q1):
         a = 0
     else:
         a = 1
     return a
-
-def update_Q(sa, G):
-    N[sa] = N.get(sa, 0) + 1
-    Q[sa] = Q.get(sa, 0) + (G - Q.get(sa, 0))/N[sa]
 
 winper = []
 lossper = []
@@ -92,9 +95,8 @@ epinum = []
 
 def mc_train(episode = 10000):
     global episode_over
-    print("Start training")
+    print("Start MC training")
     for i in range(1, episode+1):
-        #print("episode ", i)
         s = initial_state()
         steps = []
         G = 0
@@ -105,13 +107,14 @@ def mc_train(episode = 10000):
             s, r = step(s,a)
             G += r
         for sa in steps:
-            update_Q(sa, G)
-        if( ( (i<10000) and ((i % 100)== 0)) or (i % 10000 == 0)):
+            N[sa] = N.get(sa, 0) + 1
+            Q[sa] = Q.get(sa, 0) + (G - Q.get(sa, 0))/N[sa]
+        if( (result_testing == True) and (( (i<10000) and ((i % 1000)== 0)) or (i % 25000 == 0)) ):
             epinum.append(i)
-            test()
+            result_test()
     print("Training is over")
 
-def test(t_episodes=100000):
+def result_test(t_episodes=100000):
     global episode_over
     win = loss = draw = 0
     for i in range(1, t_episodes+1):
@@ -131,26 +134,81 @@ def test(t_episodes=100000):
     winper.append(win/total)
     drawper.append(draw/total)
     lossper.append(loss/total)
-    
-mc_train(3000000)
 
+
+mc_train(1000000)
+# Calculate V = max (Q,A)
 for i in range(1, 11):
     for j in range(1, 22):
         V.append( (i, j, max( Q.get(((i, j), 0), 0), Q.get(((i, j), 1), 0)) ) )
 
+'''
+with open('mc_result/mc_train_result', 'rb') as f:
+    Q, N, V = pickle.load(f)
+'''
 
-# Dump the result of training and testing
-import os
-import pickle
-with open('mc_result/test_result', 'wb') as f1:
-    pickle.dump([epinum, lossper, drawper, winper], f1)
-with open('mc_result/train_result', 'wb') as f2:
-    pickle.dump([Q,N,V], f2)
+# Dump the result of training and testing if needed
+if( result_testing == True):
+    with open('mc_result/mc_test_result', 'wb') as f1:
+        pickle.dump([epinum, lossper, drawper, winper], f1)
+    with open('mc_result/mc_train_result', 'wb') as f2:
+        pickle.dump([Q,N,V], f2)
 
+Q_mc = dict(Q)
+sqerrors = []
+lambs = []
+
+def cal_sqr_error():
+    sqerror = 0
+    for i in Q_mc:
+        sqerror += (Q.get(i, 0) - Q_mc[i])**2
+    return sqerror/len(Q_mc)
+
+def sarsa(l = 0, episode = 100000, plote = False):
+    global episode_over, Q, N, E
+    epi = []
+    epierror = []
+    Q = {}
+    N = {}
+    print("Start Sarsa trianing. Lambda = ", round(l, 1), ' ... ')
+    for i in range(1, episode+1):
+        E = {}
+        s = initial_state()
+        a = egreedy(s)
+        episode_over = False
+        while(episode_over == False):
+            _s, r = step(s,a)
+            _a = egreedy(_s)
+            error = r + gamma * Q.get((_s,_a), 0) - Q.get((s,a), 0)
+            E[(s,a)] = E.get((s,a), 0) + 1
+            N[(s,a)] = N.get((s,a), 0) + 1
+            for j in E:
+                alpha = 1/N[j]
+                Q[j] = Q.get(j, 0) + alpha * error * E[j]
+                E[j] = E[j] * gamma * l
+            s = _s
+            a = _a
+        if(plote == True and i % 1000 == 0):
+            epi.append(i)
+            epierror.append(cal_sqr_error())
+    print("Training is over")
+    if(plote == True):
+        plt.plot(epi, epierror, "bo-")
+        plt.grid(True, linestyle = '--')
+        plt.show()
+        plt.close()
+
+for i in range(0, 11):
+    lamb = 0.1 * i
+    lambs.append(lamb)
+    sarsa(l = lamb, plote = ((lamb == 0) or (lamb == 1)) )
+    sqerrors.append(cal_sqr_error())
+
+
+
+print("lambdas: ", [round(i, 2) for i in lambs])
+print("Mean square errors: ", [round(i, 4) for i in sqerrors])
 # Plot value function
-import numpy as np
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 v = np.array(list(set(V)))
 x = v[:, 0]
 y = v[:, 1]
@@ -162,6 +220,15 @@ plt.show()
 plt.clf()
 
 # Plot the result of testing
-plt.plot(epinum,winper, "bo-", epinum, lossper, "ro-")
+if(result_testing == True):
+    plt.plot(epinum,winper, "bo-", epinum, lossper, "ro-")
+    plt.grid(True, linestyle = "--")
+    plt.show()
+    plt.clf()
+
+# Plot mean square errors
+plt.plot(lambs, sqerrors, "bo-")
 plt.grid(True, linestyle = "--")
 plt.show()
+plt.clf()
+
