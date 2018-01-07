@@ -4,6 +4,7 @@ N0 = 100
 episode_over = False
 Q = {}
 N = {}
+V = []
 
 def initial_state():
     return (random.randint(1,10), random.randint(1,10))
@@ -11,6 +12,7 @@ def initial_state():
 def step(s, a):
     global episode_over
     dsum, psum = s
+    # a = 1: stick, a = 0: hit
     if(a == 1):
         while( (dsum < 17) and (dsum > 0)):
             point = random.randint(1,10)
@@ -80,20 +82,15 @@ def greedy(s):
     return a
 
 def update_Q(sa, G):
-    if(sa not in N):
-        N[sa] = 1
-    else:
-        N[sa] += 1
-    if(sa not in Q):
-        Q[sa] = 0
-    Q[sa] = Q[sa] + (G - Q[sa])/N[sa]
+    N[sa] = N.get(sa, 0) + 1
+    Q[sa] = Q.get(sa, 0) + (G - Q.get(sa, 0))/N[sa]
 
 winper = []
 lossper = []
 drawper = []
 epinum = []
 
-def train(episode = 10000):
+def mc_train(episode = 10000):
     global episode_over
     print("Start training")
     for i in range(1, episode+1):
@@ -107,14 +104,14 @@ def train(episode = 10000):
             steps.append((s,a))
             s, r = step(s,a)
             G += r
-        for j in range(len(steps)):
-            update_Q(steps[j], G)
+        for sa in steps:
+            update_Q(sa, G)
         if( ( (i<10000) and ((i % 100)== 0)) or (i % 10000 == 0)):
             epinum.append(i)
             test()
     print("Training is over")
 
-def test(t_episodes=10000):
+def test(t_episodes=100000):
     global episode_over
     win = loss = draw = 0
     for i in range(1, t_episodes+1):
@@ -135,14 +132,36 @@ def test(t_episodes=10000):
     drawper.append(draw/total)
     lossper.append(loss/total)
     
-train(3000000)
-import pickle
-with open('outfile', 'wb') as f:
-    pickle.dump([epinum, lossper, drawper, winper], f)
+mc_train(3000000)
 
+for i in range(1, 11):
+    for j in range(1, 22):
+        V.append( (i, j, max( Q.get(((i, j), 0), 0), Q.get(((i, j), 1), 0)) ) )
+
+
+# Dump the result of training and testing
+import os
+import pickle
+with open('mc_result/test_result', 'wb') as f1:
+    pickle.dump([epinum, lossper, drawper, winper], f1)
+with open('mc_result/train_result', 'wb') as f2:
+    pickle.dump([Q,N,V], f2)
+
+# Plot value function
 import numpy as np
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+v = np.array(list(set(V)))
+x = v[:, 0]
+y = v[:, 1]
+z = v[:, 2]
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+ax.plot_trisurf(x,y,z)
+plt.show()
+plt.clf()
 
+# Plot the result of testing
 plt.plot(epinum,winper, "bo-", epinum, lossper, "ro-")
 plt.grid(True, linestyle = "--")
 plt.show()
