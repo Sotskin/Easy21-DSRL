@@ -155,6 +155,7 @@ if( result_testing == True):
         pickle.dump([Q,N,V], f2)
 
 Q_mc = dict(Q)
+
 sqerrors = []
 lambs = []
 
@@ -204,7 +205,17 @@ for i in range(0, 11):
     sarsa(l = lamb, plote = ((lamb == 0) or (lamb == 1)) )
     sqerrors.append(cal_sqr_error())
 
+theta = np.random.rand(36, 1)
+def Q_approx(sa):
+    d = sa[0][0]
+    p = sa[0][1]
+    a = sa[1]
+    phi = np.array([[1<=d<=4, 4<=d<=7, 7<=d<=10, 
+        1<=p<=6, 4<=p<=9, 7<=p<=12, 10<=p<=15, 13<=p<=18, 16<=p<=21,
+        a == 0, a == 1]])
 
+def sarsa_lfa(l = 0, episode = 100000):
+    global episode_over, E, N
 
 print("lambdas: ", [round(i, 2) for i in lambs])
 print("Mean square errors: ", [round(i, 4) for i in sqerrors])
